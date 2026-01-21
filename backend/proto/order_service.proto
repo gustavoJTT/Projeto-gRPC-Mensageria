@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package orderservice;
+
+// Serviço de gerenciamento de pedidos
+service OrderService {
+  // Cria um novo pedido
+  rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
+
+  // Consulta o status de um pedido
+  rpc GetOrderStatus (GetOrderStatusRequest) returns (GetOrderStatusResponse);
+}
+
+// Mensagens de requisição e resposta para CreateOrder
+message CreateOrderRequest {
+  string customer_name = 1;
+  repeated string items = 2;
+  double total = 3;
+}
+
+message CreateOrderResponse {
+  string order_id = 1;
+  string status = 2;
+}
+
+// Mensagens de requisição e resposta para GetOrderStatus
+message GetOrderStatusRequest {
+  string order_id = 1;
+}
+
+message GetOrderStatusResponse {
+  string order_id = 1;
+  string status = 2;
+}

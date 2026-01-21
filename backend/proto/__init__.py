@@ -1,0 +1,3 @@
+"""
+Inicializa o módulo proto.
+"""

@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+venv/
+env/
+ENV/
+proto/*_pb2.py
+proto/*_pb2_grpc.py
+proto/__pycache__/
+.DS_Store
