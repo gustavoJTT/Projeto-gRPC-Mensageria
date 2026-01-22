@@ -2,9 +2,10 @@ version: '3.8'
 
 services:
   rabbitmq:
-    image: rabbitmq:3-alpine
+    image: rabbitmq:3-management
     ports:
       - "5672:5672"
+      - "15672:15672"
     healthcheck:
       test: rabbitmq-diagnostics -q ping
       interval: 10s
@@ -42,3 +43,10 @@ services:
       - grpc-server
     environment:
       - GRPC_HOST=grpc-server
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api

@@ -43,16 +43,23 @@ def create_order():
 
 @app.route('/api/orders/<order_id>', methods=['GET'])
 def get_order_status(order_id):
+    print("CHEGUEI")
     try:
         stub = get_grpc_stub()
         response = stub.GetOrderStatus(
             order_service_pb2.GetOrderStatusRequest(order_id=order_id)
         )
-
         return jsonify({
-            'order_id': response.order_id,
-            'status': response.status
+            "order": {
+                "id": response.order_id,
+                "customer_name": response.customer_name,
+                "items": list(response.items),
+                "total": response.total,
+                "status": response.status
+            }
         })
+
+
 
     except grpc.RpcError as e:
         if e.code() == grpc.StatusCode.NOT_FOUND:

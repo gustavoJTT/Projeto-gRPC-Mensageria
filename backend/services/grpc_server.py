@@ -61,12 +61,15 @@ class OrderService(order_service_pb2_grpc.OrderServiceServicer):
             return order_service_pb2.GetOrderStatusResponse()
 
         status = orders[order_id]['status']
-        print(f"Status do pedido {order_id}: {status}")
 
+        order = orders[order_id]
         return order_service_pb2.GetOrderStatusResponse(
-            order_id=order_id,
-            status=status
-        )
+        order_id=order_id,
+        customer_name=order['customer_name'],
+        items=order['items'],
+        total=order['total'],
+        status=order['status']
+    )
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

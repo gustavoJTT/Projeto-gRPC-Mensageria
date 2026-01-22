@@ -4,31 +4,37 @@ package orderservice;
 
 // Serviço de gerenciamento de pedidos
 service OrderService {
+
   // Cria um novo pedido
   rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
 
-  // Consulta o status de um pedido
+  // Consulta os detalhes de um pedido
   rpc GetOrderStatus (GetOrderStatusRequest) returns (GetOrderStatusResponse);
 }
 
-// Mensagens de requisição e resposta para CreateOrder
+// ---------- Requests ----------
+
 message CreateOrderRequest {
   string customer_name = 1;
   repeated string items = 2;
   double total = 3;
 }
 
+message GetOrderStatusRequest {
+  string order_id = 1;
+}
+
+// ---------- Responses ----------
+
 message CreateOrderResponse {
   string order_id = 1;
   string status = 2;
 }
 
-// Mensagens de requisição e resposta para GetOrderStatus
-message GetOrderStatusRequest {
-  string order_id = 1;
-}
-
 message GetOrderStatusResponse {
   string order_id = 1;
-  string status = 2;
+  string customer_name = 2;
+  repeated string items = 3;
+  double total = 4;
+  string status = 5;
 }
