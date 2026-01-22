@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-alpine
+    ports:
+      - "5672:5672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grpc-server:
+    build: ./backend
+    command: python services/grpc_server.py
+    ports:
+      - "50051:50051"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+
+  worker:
+    build: ./backend
+    command: python services/order_worker.py
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      grpc-server:
+        condition: service_started
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+
+  api:
+    build: ./backend
+    command: python services/rest_api.py
+    ports:
+      - "8000:8000"
+    depends_on:
+      - grpc-server
+    environment:
+      - GRPC_HOST=grpc-server

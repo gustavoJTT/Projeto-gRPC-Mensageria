@@ -12,7 +12,8 @@ app = Flask(__name__)
 CORS(app)
 
 def get_grpc_stub():
-    channel = grpc.insecure_channel('localhost:50051')
+    grpc_host = os.getenv('GRPC_HOST', 'localhost')
+    channel = grpc.insecure_channel(f'{grpc_host}:50051')
     return order_service_pb2_grpc.OrderServiceStub(channel)
 
 @app.route('/api/orders', methods=['POST'])

@@ -29,7 +29,8 @@ class OrderService(order_service_pb2_grpc.OrderServiceServicer):
 
         # Envia para fila RabbitMQ
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+            rabbitmq_host = os.getenv('RABBITMQ_HOST', 'localhost')
+            connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_host))
             channel = connection.channel()
             channel.queue_declare(queue='orders', durable=True)
 

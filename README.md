@@ -1,195 +1,90 @@
-# Projeto Order Service - gRPC + Mensageria
+# Order Service - gRPC + Mensageria
 
-Sistema de gerenciamento de pedidos com arquitetura baseada em gRPC e mensageria assíncrona usando RabbitMQ.
+Sistema de pedidos com Python (backend) e Next.js/Angular (frontend).
 
-## 📋 Visão Geral
+## 🎯 O que faz
 
-**Tecnologias:**
-- Backend: Python + gRPC + RabbitMQ
-- API: Next.js + Node.js gRPC Client
-- Frontend: React/Next.js
+- Criar pedidos
+- Processar de forma assíncrona
+- Consultar status
 
-**Arquitetura:**
-- **Comunicação Síncrona**: gRPC para criação e consulta de pedidos
-- **Processamento Assíncrono**: RabbitMQ para processar pedidos em background
-
-## 🎯 Funcionalidades
-
-- ✅ Criar pedidos (CreateOrder)
-- ✅ Consultar status de pedidos (GetOrderStatus)
-- ✅ Processamento assíncrono via fila
-- ✅ Status tracking: RECEIVED → PROCESSING → PROCESSED/FAILED
-
-## 📂 Estrutura do Projeto
+## 📂 Estrutura
 
 ```
 Projeto-gRPC-Mensageria/
-├── backend/              # Parte 1 - Backend Python (✅ IMPLEMENTADO)
-│   ├── proto/           # Contrato gRPC
-│   ├── services/        # Servidor gRPC + Worker
-│   └── README.md        # Documentação detalhada
-├── frontend/            # Parte 2 - API Next.js (🔜 A IMPLEMENTAR)
-│   └── app/api/orders/  # API Routes
-└── ui/                  # Parte 3 - UI + Infra (🔜 A IMPLEMENTAR)
-    └── pages/           # Páginas React
+├── backend/
+│   ├── proto/order_service.proto
+│   └── services/
+│       ├── rest_api.py       # API Flask
+│       ├── grpc_server.py    # Servidor gRPC
+│       └── order_worker.py   # Worker RabbitMQ
+└── frontend/                 # ⬜ FALTA FAZER
 ```
 
-## 👥 Divisão de Responsabilidades
+## 🚀 Como Rodar
 
-### Parte 1 - Backend Python ✅
-**Status**: CONCLUÍDA
-
-**Responsável**: [Seu Nome]
-
-**Componentes**:
-- Arquivo `.proto` com definição do serviço OrderService
-- Servidor gRPC em Python (porta 50051)
-- Worker de processamento com RabbitMQ
-- Scripts de geração de stubs
-
-**Documentação**: [backend/README.md](backend/README.md)
-
----
-
-### Parte 2 - API Next.js 🔜
-**Status**: PENDENTE
-
-**Responsável**: [Nome Colega 1]
-
-**Componentes**:
-- Client gRPC em Node.js
-- API Routes Next.js:
-  - `POST /api/orders` → CreateOrder
-  - `GET /api/orders/:id` → GetOrderStatus
-- Geração de stubs Node.js do .proto
-- Configuração Next.js
-
-**Entregas**:
-- `/frontend/lib/grpc-client.js` - Client gRPC
-- `/frontend/app/api/orders/route.ts` - API routes
-- `/frontend/package.json` - Dependências
-- `/frontend/README.md` - Documentação
-
----
-
-### Parte 3 - Frontend UI + Infraestrutura 🔜
-**Status**: PENDENTE
-
-**Responsável**: [Nome Colega 2]
-
-**Componentes**:
-- Página "Criar Pedido" (formulário)
-- Página "Consultar Status" (busca por ID)
-- Docker Compose para RabbitMQ
-- Configuração de ambiente
-- Integração final
-
-**Entregas**:
-- `/ui/pages/criar-pedido.tsx`
-- `/ui/pages/consultar-status.tsx`
-- `docker-compose.yml` (raiz do projeto)
-- Documentação de deploy
-
----
-
-## 🚀 Como Rodar (Parte 1 - Backend)
-
-### Pré-requisitos
-- Python 3.8+
-- RabbitMQ
-
-### Instalação
+### Opção 1: Docker (Recomendado) 🐳
 
 ```bash
-# 1. Iniciar RabbitMQ (Docker)
-docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+docker-compose up
+```
 
-# 2. Configurar backend
+Pronto! Tudo rodando em:
+- API REST: `http://localhost:8000`
+- gRPC Server: `localhost:50051`
+- RabbitMQ: `localhost:5672`
+
+### Opção 2: Manual
+
+```bash
+# 1. RabbitMQ
+docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3
+
+# 2. Configurar
 cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+python -m grpc_tools.protoc -I./proto --python_out=./proto --grpc_python_out=./proto ./proto/order_service.proto
 
-# 3. Gerar stubs gRPC
-chmod +x generate_proto.sh
-./generate_proto.sh
-
-# 4. Executar servidor gRPC (Terminal 1)
+# 3. Executar (3 terminais)
 python services/grpc_server.py
-
-# 5. Executar worker (Terminal 2)
 python services/order_worker.py
+python services/rest_api.py
 ```
 
-**Documentação completa**: [backend/README.md](backend/README.md)
+## 🧪 Testar
 
-## 📊 Modelo de Dados
-
-### Order (Pedido)
-```json
-{
-  "id": "uuid",
-  "customer_name": "string",
-  "items": ["string"],
-  "total": "number",
-  "status": "RECEIVED | PROCESSING | PROCESSED | FAILED"
-}
+```bash
+curl -X POST http://localhost:8000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"customer_name": "João", "items": ["Pizza"], "total": 45.90}'
 ```
 
-## 🔌 API gRPC
+## ⬜ Frontend (FALTA FAZER)
 
-### CreateOrder
-```protobuf
-rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse)
+**2 páginas:**
+1. Criar Pedido → `POST http://localhost:8000/api/orders`
+2. Consultar Status → `GET http://localhost:8000/api/orders/:id`
 
-CreateOrderRequest {
-  string customer_name = 1;
-  repeated string items = 2;
-  double total = 3;
-}
-
-CreateOrderResponse {
-  string order_id = 1;
-  string status = 2;
-}
+**Exemplo:**
+```javascript
+const response = await fetch('http://localhost:8000/api/orders', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    customer_name: 'Maria',
+    items: ['Pizza'],
+    total: 45.90
+  })
+});
+const data = await response.json();
+console.log(data.order_id);
 ```
 
-### GetOrderStatus
-```protobuf
-rpc GetOrderStatus (GetOrderStatusRequest) returns (GetOrderStatusResponse)
-
-GetOrderStatusRequest {
-  string order_id = 1;
-}
-
-GetOrderStatusResponse {
-  string order_id = 1;
-  string status = 2;
-}
-```
-
-## 🔄 Fluxo de Processamento
+## 📊 Fluxo
 
 ```
-Cliente → gRPC Server → RabbitMQ Queue → Worker → Atualiza Status
-   ↓           ↓
-Retorna    Salva em
-order_id   memória
+Frontend → API REST → gRPC → RabbitMQ → Worker
+Status: RECEIVED → PROCESSING → PROCESSED
 ```
-
-## 📝 Próximas Etapas
-
-- [ ] **Parte 2**: Implementar API Next.js com client gRPC
-- [ ] **Parte 3**: Criar interface de usuário e configurar Docker
-- [ ] Integração completa entre as 3 partes
-- [ ] Testes end-to-end
-
-## 📄 Licença
-
-MIT
-
-## 🤝 Contribuidores
-
-- **Backend Python** - [Seu Nome]
-- **API Next.js** - [Nome Colega 1]
-- **Frontend + Infra** - [Nome Colega 2]

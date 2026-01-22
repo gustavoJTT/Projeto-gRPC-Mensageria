@@ -29,7 +29,8 @@ def callback(ch, method, properties, body):
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
 def start_worker():
-    connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+    rabbitmq_host = os.getenv('RABBITMQ_HOST', 'localhost')
+    connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_host))
     channel = connection.channel()
     channel.queue_declare(queue='orders', durable=True)
     channel.basic_qos(prefetch_count=1)
