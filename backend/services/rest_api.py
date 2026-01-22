@@ -12,7 +12,8 @@ app = Flask(__name__)
 CORS(app)
 
 def get_grpc_stub():
-    channel = grpc.insecure_channel('localhost:50051')
+    grpc_host = os.getenv('GRPC_HOST', 'localhost')
+    channel = grpc.insecure_channel(f'{grpc_host}:50051')
     return order_service_pb2_grpc.OrderServiceStub(channel)
 
 @app.route('/api/orders', methods=['POST'])
@@ -42,16 +43,23 @@ def create_order():
 
 @app.route('/api/orders/<order_id>', methods=['GET'])
 def get_order_status(order_id):
+    print("CHEGUEI")
     try:
         stub = get_grpc_stub()
         response = stub.GetOrderStatus(
             order_service_pb2.GetOrderStatusRequest(order_id=order_id)
         )
-
         return jsonify({
-            'order_id': response.order_id,
-            'status': response.status
+            "order": {
+                "id": response.order_id,
+                "customer_name": response.customer_name,
+                "items": list(response.items),
+                "total": response.total,
+                "status": response.status
+            }
         })
+
+
 
     except grpc.RpcError as e:
         if e.code() == grpc.StatusCode.NOT_FOUND:

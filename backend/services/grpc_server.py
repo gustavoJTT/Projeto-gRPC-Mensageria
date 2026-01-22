@@ -29,7 +29,8 @@ class OrderService(order_service_pb2_grpc.OrderServiceServicer):
 
         # Envia para fila RabbitMQ
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+            rabbitmq_host = os.getenv('RABBITMQ_HOST', 'localhost')
+            connection = pika.BlockingConnection(pika.ConnectionParameters(rabbitmq_host))
             channel = connection.channel()
             channel.queue_declare(queue='orders', durable=True)
 
@@ -60,12 +61,15 @@ class OrderService(order_service_pb2_grpc.OrderServiceServicer):
             return order_service_pb2.GetOrderStatusResponse()
 
         status = orders[order_id]['status']
-        print(f"Status do pedido {order_id}: {status}")
 
+        order = orders[order_id]
         return order_service_pb2.GetOrderStatusResponse(
-            order_id=order_id,
-            status=status
-        )
+        order_id=order_id,
+        customer_name=order['customer_name'],
+        items=order['items'],
+        total=order['total'],
+        status=order['status']
+    )
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
