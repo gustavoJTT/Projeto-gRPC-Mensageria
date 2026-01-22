@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import grpc
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'proto'))
 import order_service_pb2
@@ -21,7 +21,9 @@ def create_order():
     data = request.json
 
     if not data.get('customer_name') or not data.get('items') or not data.get('total'):
-        return jsonify({'error': 'Campos obrigatórios: customer_name, items, total'}), 400
+        return jsonify({
+            'error': 'Campos obrigatórios: customer_name, items, total'
+        }), 400
 
     try:
         stub = get_grpc_stub()
@@ -36,7 +38,7 @@ def create_order():
         return jsonify({
             'order_id': response.order_id,
             'status': response.status
-        }), 201
+        }), 201  # 201 = criado
 
     except grpc.RpcError as e:
         return jsonify({'error': str(e.details())}), 500
@@ -57,9 +59,7 @@ def get_order_status(order_id):
                 "total": response.total,
                 "status": response.status
             }
-        })
-
-
+        }), 200
 
     except grpc.RpcError as e:
         if e.code() == grpc.StatusCode.NOT_FOUND:
@@ -68,7 +68,7 @@ def get_order_status(order_id):
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok'}), 200
 
 if __name__ == '__main__':
     print("API REST rodando na porta 8000...")

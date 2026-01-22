@@ -1,12 +1,130 @@
-# Order Service - gRPC + Mensageria
+# 🚀 Sistema de Pedidos - gRPC + RabbitMQ + REST API
 
-Sistema de pedidos com Python (backend) e Next.js/Angular (frontend).
+Sistema completo de gerenciamento de pedidos usando arquitetura de microserviços com comunicação gRPC, mensageria RabbitMQ e API REST.
 
-## 🎯 O que faz
+## 📋 Arquitetura
 
-- Criar pedidos
-- Processar de forma assíncrona
-- Consultar status
+```
+┌─────────────┐      HTTP/REST     ┌──────────────┐      gRPC        ┌──────────────┐
+│             │ ──────────────────> │              │ ──────────────> │              │
+│  Frontend   │                     │   REST API   │                 │ gRPC Server  │
+│  (Next.js)  │ <────────────────── │   (Flask)    │ <────────────── │   (Python)   │
+│             │      JSON           │              │     Protobuf    │              │
+└─────────────┘                     └──────────────┘                 └──────┬───────┘
+                                                                             │
+                                                                             │ RabbitMQ
+                                                                             ▼
+                                                                     ┌───────────────┐
+                                                                     │               │
+                                                                     │    Worker     │
+                                                                     │  (Consumer)   │
+                                                                     │               │
+                                                                     └───────────────┘
+```
+
+## 🔄 Fluxo de Comunicação
+
+### 1️⃣ Criar Pedido
+
+1. **Frontend → REST API** (HTTP POST)
+   - Usuário preenche formulário
+   - Frontend envia JSON via `fetch()` para `http://localhost:8000/api/orders`
+
+2. **REST API → gRPC Server** (gRPC)
+   - Flask recebe JSON
+   - Converte para mensagem Protobuf (`CreateOrderRequest`)
+   - Chama método gRPC `CreateOrder()`
+
+3. **gRPC Server → RabbitMQ** (Message Queue)
+   - Gera UUID para o pedido
+   - Salva em memória com status `RECEIVED`
+   - Publica mensagem na fila `orders`
+   - Retorna resposta ao cliente
+
+4. **Worker** (Background Processing)
+   - Consome mensagem da fila
+   - Atualiza status para `PROCESSING`
+   - Simula processamento (2 segundos)
+   - Atualiza status para `PROCESSED`
+
+### 2️⃣ Consultar Pedido
+
+1. **Frontend → REST API** (HTTP GET)
+   - Usuário fornece order_id
+   - Frontend busca em `http://localhost:8000/api/orders/{order_id}`
+
+2. **REST API → gRPC Server** (gRPC)
+   - Flask converte para `GetOrderStatusRequest`
+   - Chama método gRPC `GetOrderStatus()`
+
+3. **gRPC Server → REST API** (gRPC Response)
+   - Busca pedido na memória
+   - Retorna detalhes completos (id, cliente, itens, total, status)
+
+4. **REST API → Frontend** (HTTP Response)
+   - Converte Protobuf para JSON
+   - Frontend exibe informações com cores baseadas no status
+
+## 🛠️ Tecnologias
+
+### Backend
+- **Python 3.x** - Linguagem principal
+- **gRPC** - Comunicação de alta performance entre serviços
+- **Protocol Buffers** - Serialização de dados
+- **Flask** - REST API
+- **Flask-CORS** - Habilita CORS para o frontend
+- **RabbitMQ** - Fila de mensagens
+- **Pika** - Cliente Python para RabbitMQ
+
+### Frontend
+- **Next.js 16** - Framework React com SSG
+- **TypeScript** - Type safety
+- **Tailwind CSS 4** - Estilização
+- **React Hooks** - Gerenciamento de estado
+
+### Infraestrutura
+- **Docker** - Containerização
+- **Docker Compose** - Orquestração de containers
+- **Nginx** - Servidor web para o frontend
+
+## 🚀 Como Executar
+
+### Pré-requisitos
+- Docker e Docker Compose instalados
+- Portas disponíveis: 5672, 15672, 50051, 8000, 8080
+
+### Executar o Projeto Completo
+
+```bash
+# Clone o repositório
+git clone <seu-repo>
+cd Projeto-gRPC-Mensageria
+
+# Inicie todos os serviços
+docker-compose up --build
+
+# Ou em background
+docker-compose up -d --build
+```
+
+### Acessar os Serviços
+
+- **Frontend**: http://localhost:8080
+- **REST API**: http://localhost:8000/health
+- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
+- **gRPC Server**: localhost:50051 (não tem interface web)
+
+### Executar Apenas o Frontend (desenvolvimento)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Acesse: http://localhost:3000
+
+**Importante**: Certifique-se de que o backend está rodando (via Docker Compose) para que o frontend funcione corretamente.
 
 ## 📂 Estrutura
 
@@ -18,73 +136,127 @@ Projeto-gRPC-Mensageria/
 │       ├── rest_api.py       # API Flask
 │       ├── grpc_server.py    # Servidor gRPC
 │       └── order_worker.py   # Worker RabbitMQ
-└── frontend/                 # ⬜ FALTA FAZER
+└── frontend/
+    ├── app/
+    │   └── page.tsx          # Página principal
+    ├── Dockerfile
+    └── nginx.conf
 ```
 
-## 🚀 Como Rodar
+## 📦 Estrutura de Dados
 
-### Opção 1: Docker (Recomendado) 🐳
-
-```bash
-docker-compose up
+### Criar Pedido (Request)
+```json
+{
+  "customer_name": "João Silva",
+  "items": ["Pizza", "Refrigerante", "Sobremesa"],
+  "total": 89.90
+}
 ```
 
-Pronto! Tudo rodando em:
-- API REST: `http://localhost:8000`
-- gRPC Server: `localhost:50051`
-- RabbitMQ: `localhost:5672`
-
-### Opção 2: Manual
-
-```bash
-# 1. RabbitMQ
-docker run -d --name rabbitmq -p 5672:5672 rabbitmq:3
-
-# 2. Configurar
-cd backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python -m grpc_tools.protoc -I./proto --python_out=./proto --grpc_python_out=./proto ./proto/order_service.proto
-
-# 3. Executar (3 terminais)
-python services/grpc_server.py
-python services/order_worker.py
-python services/rest_api.py
+### Criar Pedido (Response)
+```json
+{
+  "order_id": "123e4567-e89b-12d3-a456-426614174000",
+  "status": "RECEIVED"
+}
 ```
 
-## 🧪 Testar
+### Consultar Pedido (Response)
+```json
+{
+  "order": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "customer_name": "João Silva",
+    "items": ["Pizza", "Refrigerante", "Sobremesa"],
+    "total": 89.90,
+    "status": "PROCESSED"
+  }
+}
+```
 
+## 📊 Status dos Pedidos
+
+- `RECEIVED` 🔵 - Pedido recebido e aguardando processamento
+- `PROCESSING` 🟡 - Pedido sendo processado pelo worker
+- `PROCESSED` 🟢 - Pedido concluído
+
+## 🧪 Testar com cURL
+
+### Criar pedido
 ```bash
 curl -X POST http://localhost:8000/api/orders \
   -H "Content-Type: application/json" \
-  -d '{"customer_name": "João", "items": ["Pizza"], "total": 45.90}'
+  -d '{
+    "customer_name": "João Silva",
+    "items": ["Pizza", "Refrigerante"],
+    "total": 55.90
+  }'
 ```
 
-## ⬜ Frontend (FALTA FAZER)
-
-**2 páginas:**
-1. Criar Pedido → `POST http://localhost:8000/api/orders`
-2. Consultar Status → `GET http://localhost:8000/api/orders/:id`
-
-**Exemplo:**
-```javascript
-const response = await fetch('http://localhost:8000/api/orders', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    customer_name: 'Maria',
-    items: ['Pizza'],
-    total: 45.90
-  })
-});
-const data = await response.json();
-console.log(data.order_id);
+### Consultar pedido
+```bash
+curl http://localhost:8000/api/orders/{order_id}
 ```
 
-## 📊 Fluxo
+## 🎯 Por que essa arquitetura?
 
+### gRPC
+- ✅ Comunicação binária (mais rápida que JSON)
+- ✅ Type-safe com Protocol Buffers
+- ✅ Streaming bidirecional
+- ✅ Ideal para comunicação entre microserviços
+
+### RabbitMQ
+- ✅ Desacoplamento entre produtores e consumidores
+- ✅ Processamento assíncrono
+- ✅ Tolerância a falhas
+- ✅ Escalabilidade horizontal
+
+### REST API
+- ✅ Interface amigável para clientes HTTP
+- ✅ Facilita integração com frontend
+- ✅ Simplicidade e familiaridade
+
+## 📝 Logs e Monitoramento
+
+### Ver logs dos containers
+```bash
+# Todos os logs
+docker-compose logs -f
+
+# Logs específicos
+docker-compose logs -f grpc-server
+docker-compose logs -f worker
+docker-compose logs -f api
 ```
-Frontend → API REST → gRPC → RabbitMQ → Worker
-Status: RECEIVED → PROCESSING → PROCESSED
+
+### RabbitMQ Management
+Acesse http://localhost:15672
+- Usuário: `guest`
+- Senha: `guest`
+
+Você pode monitorar:
+- Mensagens na fila
+- Taxa de processamento
+- Conexões ativas
+
+## 🔧 Desenvolvimento
+
+### Compilar Protocol Buffers
+```bash
+cd backend
+python -m grpc_tools.protoc \
+  -I./proto \
+  --python_out=./proto \
+  --grpc_python_out=./proto \
+  ./proto/order_service.proto
+```
+
+### Parar os serviços
+```bash
+docker-compose down
+
+# Remover volumes também
+docker-compose down -v
 ```

@@ -3,3 +3,4 @@ grpcio-tools
 pika
 flask
 flask-cors
+redis

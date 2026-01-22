@@ -1,6 +1,16 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   rabbitmq:
     image: rabbitmq:3-management
     ports:
@@ -20,19 +30,26 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - RABBITMQ_HOST=rabbitmq
+      - REDIS_HOST=redis
 
   worker:
     build: ./backend
     command: python services/order_worker.py
+    restart: unless-stopped
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       grpc-server:
         condition: service_started
     environment:
       - RABBITMQ_HOST=rabbitmq
+      - REDIS_HOST=redis
 
   api:
     build: ./backend
