@@ -22,6 +22,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # Backend gRPC Server (Python)
   grpc-server:
     build: ./backend
     command: python services/grpc_server.py
@@ -36,6 +37,7 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - REDIS_HOST=redis
 
+  # Worker que processa pedidos assincronamente
   worker:
     build: ./backend
     command: python services/order_worker.py
@@ -51,19 +53,26 @@ services:
       - RABBITMQ_HOST=rabbitmq
       - REDIS_HOST=redis
 
-  api:
-    build: ./backend
-    command: python services/rest_api.py
+  # Gateway gRPC (Node.js)
+  grpc-gateway:
+    build: ./gateway
+    command: node gateway.js
     ports:
-      - "8000:8000"
+      - "9090:9090"
     depends_on:
       - grpc-server
     environment:
-      - GRPC_HOST=grpc-server
+      - BACKEND_HOST=grpc-server
+      - BACKEND_PORT=50051
+      - GATEWAY_PORT=9090
 
+  # Frontend (TypeScript/React)
   frontend:
     build: ./frontend
     ports:
       - "8080:80"
     depends_on:
-      - api
+      - grpc-gateway
+    environment:
+      - NEXT_PUBLIC_GATEWAY_URL=http://grpc-gateway:9090
+

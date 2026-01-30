@@ -1,23 +1,82 @@
-# 🚀 Sistema de Pedidos - gRPC + RabbitMQ + REST API
+# � Sistema de Gerenciamento de Pedidos - Arquitetura gRPC Puro
 
-Sistema completo de gerenciamento de pedidos usando arquitetura de microserviços com comunicação gRPC, mensageria RabbitMQ e API REST.
+## 🎯 Objetivo do Projeto
 
-## 📋 Arquitetura
+Demonstrar uma arquitetura de sistema distribuído baseada em **gRPC** que estabelece comunicação entre **duas linguagens diferentes** (TypeScript/Node.js e Python), seguindo os requisitos:
+
+✅ **Transmissão necessariamente com gRPC**  
+✅ **Duas linguagens diferentes com comunicação entre elas**  
+✅ **Demonstração de arquitetura**  
+
+---
+
+## 🏗️ Arquitetura do Sistema
 
 ```
-┌─────────────┐      HTTP/REST     ┌──────────────┐      gRPC        ┌──────────────┐
-│             │ ──────────────────> │              │ ──────────────> │              │
-│  Frontend   │                     │   REST API   │                 │ gRPC Server  │
-│  (Next.js)  │ <────────────────── │   (Flask)    │ <────────────── │   (Python)   │
-│             │      JSON           │              │     Protobuf    │              │
-└─────────────┘                     └──────────────┘                 └──────┬───────┘
-                                                                             │
-                                                                             │ RabbitMQ
-                                                                             ▼
-                                                                     ┌───────────────┐
-                                                                     │               │
-                                                                     │    Worker     │
-                                                                     │  (Consumer)   │
+┌─────────────────────────────────────────────────────────────────────┐
+│                     FRONTEND (Port 8080)                            │
+│              TypeScript/React (Next.js v16)                         │
+│         Cliente gRPC Web que consome API do Gateway                 │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+          ▼──── gRPC Channel (porta 9090) ────▼
+                             │
+┌─────────────────────────────────────────────────────────────────────┐
+│                   GATEWAY gRPC (Port 9090)                          │
+│               Node.js/JavaScript gRPC Server                        │
+│     ✓ Recebe requisições gRPC do Frontend                           │
+│     ✓ Faz proxy para Backend                                        │
+│     ✓ Implementa comunicação interserviços                          │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+          ▼──── gRPC Channel (porta 50051) ────▼
+                             │
+┌─────────────────────────────────────────────────────────────────────┐
+│                   BACKEND gRPC (Port 50051)                         │
+│                Python gRPC Server                                   │
+│         ✓ Implementa OrderService                                    │
+│         ✓ Persiste dados em Redis                                   │
+│         ✓ Publica eventos em RabbitMQ                               │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+          ▼──────────────────┼──────────────────▼
+          │                  │
+    ┌─────▼────┐        ┌────▼──────┐        ┌──────────────┐
+    │   Redis  │        │ RabbitMQ  │        │   Worker     │
+    │ (Cache)  │        │  (Fila)   │        │  (Async)     │
+    └──────────┘        └────┬──────┘        └──────────────┘
+                             │
+                    Processa Pedidos
+                    Status: RECEIVED → PROCESSING → PROCESSED
+```
+
+---
+
+## 🛠️ Tecnologias Utilizadas
+
+### Frontend
+- **Framework**: Next.js 16
+- **Linguagem**: TypeScript 5
+- **Comunicação**: gRPC Web
+- **Styling**: TailwindCSS 4
+
+### Gateway
+- **Runtime**: Node.js 20 (LTS)
+- **Framework**: @grpc/grpc-js
+- **Padrão**: gRPC Server (Proxy)
+- **Porta**: 9090
+
+### Backend
+- **Linguagem**: Python 3.11
+- **Framework gRPC**: grpcio + grpcio-tools
+- **Message Queue**: RabbitMQ (pika)
+- **Cache**: Redis
+- **Porta**: 50051
+
+### Infraestrutura
+- **Orquestração**: Docker Compose
+- **Message Broker**: RabbitMQ 3
+- **Cache Store**: Redis 7
                                                                      │               │
                                                                      └───────────────┘
 ```

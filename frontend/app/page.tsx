@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 interface Order {
   id: string;
@@ -8,6 +8,37 @@ interface Order {
   items: string[];
   total: number;
   status: string;
+}
+
+// Client gRPC Web stub
+const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:9090';
+
+// Função para chamar gRPC via fetch (gRPC Web)
+async function callGrpcService(methodName: string, request: any) {
+  try {
+    console.log(`📤 Chamando ${methodName}:`, request);
+
+    // Usar base64 para transmitir dados binários
+    const response = await fetch(`${GATEWAY_URL}/${methodName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/grpc-web+proto',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`gRPC error: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log(`📥 Resposta:`, data);
+    return data;
+  } catch (error) {
+    console.error(`❌ Erro:`, error);
+    throw error;
+  }
 }
 
 export default function Home() {
@@ -22,274 +53,224 @@ export default function Home() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const API_URL = 'http://localhost:8000/api';
-
-  const handleCreateOrder = async (e: React.FormEvent) => {
+  const handleCreateOrder = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      const response = await fetch(`${API_URL}/orders`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customer_name: customerName,
-          items: items.split(',').map(item => item.trim()),
-          total: parseFloat(total),
-        }),
+      const response = await callGrpcService('orderservice.OrderService/CreateOrder', {
+        customer_name: customerName,
+        items: items.split(',').map(item => item.trim()),
+        total: parseFloat(total),
       });
 
-      if (!response.ok) {
-        throw new Error('Erro ao criar pedido');
-      }
-
-      const data = await response.json();
-
-      setSuccess(`Pedido criado com sucesso! ID: ${data.order_id}`);
-
+      setSuccess(`✅ Pedido criado! ID: ${response.order_id}`);
       setCustomerName('');
       setItems('');
       setTotal('');
-
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
-  };
+  }, [customerName, items, total]);
 
-  const handleSearchOrder = async (e: React.FormEvent) => {
+  const handleGetOrderStatus = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setOrderDetails(null);
 
     try {
-      const response = await fetch(`${API_URL}/orders/${searchOrderId}`);
-
-      if (!response.ok) {
-        throw new Error('Pedido não encontrado');
-      }
-
-      const data = await response.json();
-
-      setOrderDetails({
-        id: data.order.id,
-        customer_name: data.order.customer_name,
-        items: data.order.items,
-        total: data.order.total,
-        status: data.order.status,
+      const response = await callGrpcService('orderservice.OrderService/GetOrderStatus', {
+        order_id: searchOrderId,
       });
 
+      setOrderDetails({
+        id: response.order_id,
+        customer_name: response.customer_name,
+        items: response.items || [],
+        total: response.total,
+        status: response.status,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      setOrderDetails(null);
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'RECEIVED':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'PROCESSING':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-      case 'PROCESSED':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-    }
-  };
+  }, [searchOrderId]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">📦 Sistema de Pedidos gRPC</h1>
+          <p className="text-gray-600">Arquitetura com gRPC puro - Frontend (TypeScript) ↔ Gateway (Node.js) ↔ Backend (Python)</p>
+        </div>
 
-        {/* Cabeçalho */}
-        <h1 className="text-4xl font-bold text-center mb-2 text-gray-800 dark:text-white">
-          Sistema de Pedidos
-        </h1>
-        <p className="text-center text-gray-600 dark:text-gray-300 mb-8">
-          gRPC + RabbitMQ + REST API
-        </p>
-
-        {/* Grid com 2 colunas: Criar e Consultar */}
-        <div className="grid md:grid-cols-2 gap-8">
-
-          {/* ===== COLUNA 1: CRIAR PEDIDO ===== */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-white">
-              Criar Novo Pedido
-            </h2>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Form Criar Pedido */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">➕ Criar Novo Pedido</h2>
+            
             <form onSubmit={handleCreateOrder} className="space-y-4">
-
-              {/* Campo: Nome do Cliente */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nome do Cliente
                 </label>
                 <input
                   type="text"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="João Silva"
+                  placeholder="Ex: João Silva"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
 
-              {/* Campo: Itens */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Itens (separados por vírgula)
                 </label>
                 <input
                   type="text"
                   value={items}
                   onChange={(e) => setItems(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="Pizza, Refrigerante, Sobremesa"
+                  placeholder="Ex: Notebook, Mouse, Teclado"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
 
-              {/* Campo: Valor Total */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Valor Total (R$)
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Valor Total
                 </label>
                 <input
                   type="number"
-                  step="0.01"
                   value={total}
                   onChange={(e) => setTotal(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="89.90"
+                  placeholder="Ex: 1500.00"
+                  step="0.01"
+                  min="0"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
               </div>
 
-              {/* Botão Submit */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition"
               >
-                {loading ? 'Criando...' : 'Criar Pedido'}
+                {loading ? '⏳ Enviando...' : '📤 Criar Pedido'}
               </button>
             </form>
-
-            {/* Mensagem de Sucesso */}
-            {success && (
-              <div className="mt-4 p-4 bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-200 rounded-lg">
-                {success}
-              </div>
-            )}
           </div>
 
-          {/* ===== COLUNA 2: CONSULTAR PEDIDO ===== */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-white">
-              Consultar Pedido
-            </h2>
-
-            <form onSubmit={handleSearchOrder} className="space-y-4">
-
-              {/* Campo: ID do Pedido */}
+          {/* Form Consultar Pedido */}
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">🔍 Consultar Pedido</h2>
+            
+            <form onSubmit={handleGetOrderStatus} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   ID do Pedido
                 </label>
                 <input
                   type="text"
                   value={searchOrderId}
                   onChange={(e) => setSearchOrderId(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   placeholder="Cole o ID do pedido aqui"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   required
                 />
               </div>
 
-              {/* Botão Submit */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition"
               >
-                {loading ? 'Buscando...' : 'Buscar Pedido'}
+                {loading ? '⏳ Buscando...' : '🔎 Consultar Status'}
               </button>
             </form>
 
-            {/* Mensagem de Erro */}
-            {error && (
-              <div className="mt-4 p-4 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 rounded-lg">
-                {error}
-              </div>
-            )}
-
-            {/* Detalhes do Pedido (se encontrado) */}
+            {/* Detalhes do Pedido */}
             {orderDetails && (
-              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <h3 className="font-semibold text-lg mb-3 text-gray-800 dark:text-white">
-                  Detalhes do Pedido
-                </h3>
+              <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Detalhes do Pedido</h3>
                 <div className="space-y-2 text-sm">
-
-                  {/* ID */}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">ID:</span>
-                    <span className="font-mono text-gray-800 dark:text-gray-200">
-                      {orderDetails.id}
-                    </span>
-                  </div>
-
-                  {/* Cliente */}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Cliente:</span>
-                    <span className="font-medium text-gray-800 dark:text-gray-200">
-                      {orderDetails.customer_name}
-                    </span>
-                  </div>
-
-                  {/* Total */}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Total:</span>
-                    <span className="font-medium text-gray-800 dark:text-gray-200">
-                      R$ {orderDetails.total.toFixed(2)}
-                    </span>
-                  </div>
-
-                  {/* Status com cor */}
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Status:</span>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
-                        orderDetails.status
-                      )}`}
-                    >
+                  <p><span className="font-medium">ID:</span> {orderDetails.id}</p>
+                  <p><span className="font-medium">Cliente:</span> {orderDetails.customer_name}</p>
+                  <p><span className="font-medium">Itens:</span> {orderDetails.items.join(', ')}</p>
+                  <p><span className="font-medium">Total:</span> R$ {orderDetails.total.toFixed(2)}</p>
+                  <p>
+                    <span className="font-medium">Status:</span>{' '}
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      orderDetails.status === 'RECEIVED' ? 'bg-yellow-100 text-yellow-800' :
+                      orderDetails.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
                       {orderDetails.status}
                     </span>
-                  </div>
-
-                  {/* Lista de Itens */}
-                  <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
-                    <span className="text-gray-600 dark:text-gray-400 block mb-1">Itens:</span>
-                    <ul className="list-disc list-inside space-y-1">
-                      {orderDetails.items.map((item, index) => (
-                        <li key={index} className="text-gray-800 dark:text-gray-200">
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  </p>
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Mensagens */}
+        {success && (
+          <div className="mt-8 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg">
+            {success}
+          </div>
+        )}
+
+        {error && (
+          <div className="mt-8 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg">
+            ❌ {error}
+          </div>
+        )}
+
+        {/* Arquitetura */}
+        <div className="mt-12 bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">🏗️ Arquitetura do Sistema</h2>
+          <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm">
+            <pre className="overflow-x-auto">
+{`
+┌─────────────────────────────────────────────────────────────┐
+│                  FRONTEND (TypeScript/React)                 │
+│                  Comunica via gRPC-Web                       │
+└────────────────────────────────────────────────────────────┬─┘
+                                                               │
+                                                               ▼
+                    🔄 gRPC Channel (porta 9090)
+                                                               │
+                                                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│             GATEWAY (Node.js - gRPC Server)                  │
+│      Faz proxy gRPC para o Backend + Load Balancing         │
+└────────────────────────────────────────────────────────────┬─┘
+                                                               │
+                                                               ▼
+                    🔄 gRPC Channel (porta 50051)
+                                                               │
+                                                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│           BACKEND (Python - gRPC Server)                     │
+│  OrderService com persistência em Redis + fila RabbitMQ     │
+├─────────────────────────────────────────────────────────────┤
+│  - CreateOrder: Cria pedido → publica em fila               │
+│  - GetOrderStatus: Consulta status em Redis                 │
+│  - Order Worker: Processa pedidos de forma assíncrona       │
+└─────────────────────────────────────────────────────────────┘
+`}
+            </pre>
           </div>
         </div>
       </div>
